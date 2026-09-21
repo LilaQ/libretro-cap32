@@ -344,6 +344,167 @@ static unsigned do_action(const retro_action_t* action)
    return action->type;
 }
 
+static unsigned vkeyboard_key = RETROK_F9;
+static bool vkeyboard_key_down, vkeyboard_button_down;
+static retro_input_state_t vkeyboard_input_cb;
+static const retro_action_t vkeyboard_action = { EVENT_VKEYB, "VKEYB", NULL };
+
+void ev_vkeyboard_set_key(const char *value)
+{
+   unsigned key = RETROK_F9;
+   if (value) {
+      key = RETROK_UNKNOWN;
+      if (strcmp(value, "F9") == 0) key = RETROK_F9;
+      if (strcmp(value, "BACKSPACE") == 0) key = RETROK_BACKSPACE;
+      if (strcmp(value, "TAB") == 0) key = RETROK_TAB;
+      if (strcmp(value, "CLEAR") == 0) key = RETROK_CLEAR;
+      if (strcmp(value, "RETURN") == 0) key = RETROK_RETURN;
+      if (strcmp(value, "PAUSE") == 0) key = RETROK_PAUSE;
+      if (strcmp(value, "ESCAPE") == 0) key = RETROK_ESCAPE;
+      if (strcmp(value, "SPACE") == 0) key = RETROK_SPACE;
+      if (strcmp(value, "QUOTE") == 0) key = RETROK_QUOTE;
+      if (strcmp(value, "COMMA") == 0) key = RETROK_COMMA;
+      if (strcmp(value, "MINUS") == 0) key = RETROK_MINUS;
+      if (strcmp(value, "PERIOD") == 0) key = RETROK_PERIOD;
+      if (strcmp(value, "SLASH") == 0) key = RETROK_SLASH;
+      if (strcmp(value, "0") == 0) key = RETROK_0;
+      if (strcmp(value, "1") == 0) key = RETROK_1;
+      if (strcmp(value, "2") == 0) key = RETROK_2;
+      if (strcmp(value, "3") == 0) key = RETROK_3;
+      if (strcmp(value, "4") == 0) key = RETROK_4;
+      if (strcmp(value, "5") == 0) key = RETROK_5;
+      if (strcmp(value, "6") == 0) key = RETROK_6;
+      if (strcmp(value, "7") == 0) key = RETROK_7;
+      if (strcmp(value, "8") == 0) key = RETROK_8;
+      if (strcmp(value, "9") == 0) key = RETROK_9;
+      if (strcmp(value, "SEMICOLON") == 0) key = RETROK_SEMICOLON;
+      if (strcmp(value, "EQUALS") == 0) key = RETROK_EQUALS;
+      if (strcmp(value, "LEFTBRACKET") == 0) key = RETROK_LEFTBRACKET;
+      if (strcmp(value, "BACKSLASH") == 0) key = RETROK_BACKSLASH;
+      if (strcmp(value, "RIGHTBRACKET") == 0) key = RETROK_RIGHTBRACKET;
+      if (strcmp(value, "BACKQUOTE") == 0) key = RETROK_BACKQUOTE;
+      if (strcmp(value, "a") == 0) key = RETROK_a;
+      if (strcmp(value, "b") == 0) key = RETROK_b;
+      if (strcmp(value, "c") == 0) key = RETROK_c;
+      if (strcmp(value, "d") == 0) key = RETROK_d;
+      if (strcmp(value, "e") == 0) key = RETROK_e;
+      if (strcmp(value, "f") == 0) key = RETROK_f;
+      if (strcmp(value, "g") == 0) key = RETROK_g;
+      if (strcmp(value, "h") == 0) key = RETROK_h;
+      if (strcmp(value, "i") == 0) key = RETROK_i;
+      if (strcmp(value, "j") == 0) key = RETROK_j;
+      if (strcmp(value, "k") == 0) key = RETROK_k;
+      if (strcmp(value, "l") == 0) key = RETROK_l;
+      if (strcmp(value, "m") == 0) key = RETROK_m;
+      if (strcmp(value, "n") == 0) key = RETROK_n;
+      if (strcmp(value, "o") == 0) key = RETROK_o;
+      if (strcmp(value, "p") == 0) key = RETROK_p;
+      if (strcmp(value, "q") == 0) key = RETROK_q;
+      if (strcmp(value, "r") == 0) key = RETROK_r;
+      if (strcmp(value, "s") == 0) key = RETROK_s;
+      if (strcmp(value, "t") == 0) key = RETROK_t;
+      if (strcmp(value, "u") == 0) key = RETROK_u;
+      if (strcmp(value, "v") == 0) key = RETROK_v;
+      if (strcmp(value, "w") == 0) key = RETROK_w;
+      if (strcmp(value, "x") == 0) key = RETROK_x;
+      if (strcmp(value, "y") == 0) key = RETROK_y;
+      if (strcmp(value, "z") == 0) key = RETROK_z;
+      if (strcmp(value, "DELETE") == 0) key = RETROK_DELETE;
+      if (strcmp(value, "KP0") == 0) key = RETROK_KP0;
+      if (strcmp(value, "KP1") == 0) key = RETROK_KP1;
+      if (strcmp(value, "KP2") == 0) key = RETROK_KP2;
+      if (strcmp(value, "KP3") == 0) key = RETROK_KP3;
+      if (strcmp(value, "KP4") == 0) key = RETROK_KP4;
+      if (strcmp(value, "KP5") == 0) key = RETROK_KP5;
+      if (strcmp(value, "KP6") == 0) key = RETROK_KP6;
+      if (strcmp(value, "KP7") == 0) key = RETROK_KP7;
+      if (strcmp(value, "KP8") == 0) key = RETROK_KP8;
+      if (strcmp(value, "KP9") == 0) key = RETROK_KP9;
+      if (strcmp(value, "KP_PERIOD") == 0) key = RETROK_KP_PERIOD;
+      if (strcmp(value, "KP_DIVIDE") == 0) key = RETROK_KP_DIVIDE;
+      if (strcmp(value, "KP_MULTIPLY") == 0) key = RETROK_KP_MULTIPLY;
+      if (strcmp(value, "KP_MINUS") == 0) key = RETROK_KP_MINUS;
+      if (strcmp(value, "KP_PLUS") == 0) key = RETROK_KP_PLUS;
+      if (strcmp(value, "KP_ENTER") == 0) key = RETROK_KP_ENTER;
+      if (strcmp(value, "KP_EQUALS") == 0) key = RETROK_KP_EQUALS;
+      if (strcmp(value, "UP") == 0) key = RETROK_UP;
+      if (strcmp(value, "DOWN") == 0) key = RETROK_DOWN;
+      if (strcmp(value, "RIGHT") == 0) key = RETROK_RIGHT;
+      if (strcmp(value, "LEFT") == 0) key = RETROK_LEFT;
+      if (strcmp(value, "INSERT") == 0) key = RETROK_INSERT;
+      if (strcmp(value, "HOME") == 0) key = RETROK_HOME;
+      if (strcmp(value, "END") == 0) key = RETROK_END;
+      if (strcmp(value, "PAGEUP") == 0) key = RETROK_PAGEUP;
+      if (strcmp(value, "PAGEDOWN") == 0) key = RETROK_PAGEDOWN;
+      if (strcmp(value, "F1") == 0) key = RETROK_F1;
+      if (strcmp(value, "F2") == 0) key = RETROK_F2;
+      if (strcmp(value, "F3") == 0) key = RETROK_F3;
+      if (strcmp(value, "F4") == 0) key = RETROK_F4;
+      if (strcmp(value, "F5") == 0) key = RETROK_F5;
+      if (strcmp(value, "F6") == 0) key = RETROK_F6;
+      if (strcmp(value, "F7") == 0) key = RETROK_F7;
+      if (strcmp(value, "F8") == 0) key = RETROK_F8;
+      if (strcmp(value, "F10") == 0) key = RETROK_F10;
+      if (strcmp(value, "F11") == 0) key = RETROK_F11;
+      if (strcmp(value, "F12") == 0) key = RETROK_F12;
+      if (strcmp(value, "F13") == 0) key = RETROK_F13;
+      if (strcmp(value, "F14") == 0) key = RETROK_F14;
+      if (strcmp(value, "F15") == 0) key = RETROK_F15;
+      if (strcmp(value, "NUMLOCK") == 0) key = RETROK_NUMLOCK;
+      if (strcmp(value, "CAPSLOCK") == 0) key = RETROK_CAPSLOCK;
+      if (strcmp(value, "SCROLLOCK") == 0) key = RETROK_SCROLLOCK;
+      if (strcmp(value, "RSHIFT") == 0) key = RETROK_RSHIFT;
+      if (strcmp(value, "LSHIFT") == 0) key = RETROK_LSHIFT;
+      if (strcmp(value, "RCTRL") == 0) key = RETROK_RCTRL;
+      if (strcmp(value, "LCTRL") == 0) key = RETROK_LCTRL;
+      if (strcmp(value, "RALT") == 0) key = RETROK_RALT;
+      if (strcmp(value, "LALT") == 0) key = RETROK_LALT;
+      if (strcmp(value, "RMETA") == 0) key = RETROK_RMETA;
+      if (strcmp(value, "LMETA") == 0) key = RETROK_LMETA;
+      if (strcmp(value, "LSUPER") == 0) key = RETROK_LSUPER;
+      if (strcmp(value, "RSUPER") == 0) key = RETROK_RSUPER;
+      if (strcmp(value, "MODE") == 0) key = RETROK_MODE;
+      if (strcmp(value, "COMPOSE") == 0) key = RETROK_COMPOSE;
+      if (strcmp(value, "HELP") == 0) key = RETROK_HELP;
+      if (strcmp(value, "PRINT") == 0) key = RETROK_PRINT;
+      if (strcmp(value, "SYSREQ") == 0) key = RETROK_SYSREQ;
+      if (strcmp(value, "BREAK") == 0) key = RETROK_BREAK;
+      if (strcmp(value, "MENU") == 0) key = RETROK_MENU;
+      if (strcmp(value, "POWER") == 0) key = RETROK_POWER;
+      if (strcmp(value, "EURO") == 0) key = RETROK_EURO;
+      if (strcmp(value, "UNDO") == 0) key = RETROK_UNDO;
+      if (strcmp(value, "OEM_102") == 0) key = RETROK_OEM_102;
+   }
+   if (key != vkeyboard_key) {
+      if (get_cpckey(key) != CPC_KEY_NULL)
+         ev_release_key(get_cpckey(key));
+      vkeyboard_key_down = false;
+      vkeyboard_key = key;
+   }
+}
+
+void ev_vkeyboard_input_init(retro_input_state_t cb)
+{
+   vkeyboard_input_cb = cb;
+   vkeyboard_key_down = vkeyboard_button_down = false;
+}
+
+int16_t ev_vkeyboard_input(unsigned port, unsigned device, unsigned index, unsigned id)
+{
+   /* Reserve the action so it cannot also reach CPC or on-screen UI input. */
+   if (port == 0 && device == RETRO_DEVICE_JOYPAD && id == RETRO_DEVICE_ID_JOYPAD_L3)
+      return 0;
+   return vkeyboard_input_cb(port, device, index, id);
+}
+
+void ev_vkeyboard_poll(void)
+{
+   bool down = vkeyboard_input_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3);
+   if (down && !vkeyboard_button_down)
+      do_action(&vkeyboard_action);
+   vkeyboard_button_down = down;
+}
+
 /**
  * ev_events_joy:
  * generate the SELECT + JOYPAD_x result in screen/emulation
@@ -478,11 +639,9 @@ bool ev_autorun()
 
 //-----------------------------------------------------
 
-#define MAX_KEY_EVENT 6
+#define MAX_KEY_EVENT 5
 const retro_combo_event_t keyb_events[MAX_KEY_EVENT] =
 {
-   { RETROK_F9,
-      { EVENT_VKEYB, "VKEYB", NULL } },
    { RETROK_F10,
       { EVENT_GUI, "GUI", NULL} },
    { RETROK_HOME,
@@ -558,6 +717,13 @@ static void keyboard_cb(bool down, unsigned keycode, uint32_t character, uint16_
 {
    //printf( "Down: %s, Code: %d, Char: %u, Mod: %u.\n",
    //       down ? "yes" : "no", keycode, character, mod);
+
+   if (vkeyboard_key != RETROK_UNKNOWN && keycode == vkeyboard_key) {
+      if (down && !vkeyboard_key_down)
+         do_action(&vkeyboard_action);
+      vkeyboard_key_down = down;
+      return;
+   }
 
    if(process_ev_key(keycode, down) != CPC_KEY_NULL)
       return;
@@ -703,7 +869,7 @@ void ev_init(){
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2, "R2" },
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2, "L2" },
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3, "R3" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3, "L3" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3, "Toggle on-screen keyboard" },
       { 0, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_TRIGGER, "Gun Trigger" },
 
       { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A, "A" },
