@@ -846,53 +846,139 @@ void init_keyboard_table() {
 
 }
 
+/* Matrix aliases for joystick 2 are also real CPC keyboard keys. */
+static const char *input_key_label(unsigned key)
+{
+   switch (key) {
+      case CPC_KEY_CURSOR_UP: return "CPC Cursor Up";
+      case CPC_KEY_CURSOR_RIGHT: return "CPC Cursor Right";
+      case CPC_KEY_CURSOR_DOWN: return "CPC Cursor Down";
+      case CPC_KEY_F9: return "CPC F9";
+      case CPC_KEY_F6: return "CPC F6";
+      case CPC_KEY_F3: return "CPC F3";
+      case CPC_KEY_INTRO: return "CPC Keypad Enter";
+      case CPC_KEY_FDOT: return "CPC Keypad .";
+      case CPC_KEY_CURSOR_LEFT: return "CPC Cursor Left";
+      case CPC_KEY_COPY: return "CPC Copy";
+      case CPC_KEY_F7: return "CPC F7";
+      case CPC_KEY_F8: return "CPC F8";
+      case CPC_KEY_F5: return "CPC F5";
+      case CPC_KEY_F1: return "CPC F1";
+      case CPC_KEY_F2: return "CPC F2";
+      case CPC_KEY_F0: return "CPC F0";
+      case CPC_KEY_CLR: return "CPC Clr";
+      case CPC_KEY_OPEN_SQUARE_BRACKET: return "CPC [";
+      case CPC_KEY_RETURN: return "CPC Return";
+      case CPC_KEY_CLOSE_SQUARE_BRACKET: return "CPC ]";
+      case CPC_KEY_F4: return "CPC F4";
+      case CPC_KEY_SHIFT: return "CPC Shift";
+      case CPC_KEY_FORWARD_SLASH: return "CPC /";
+      case CPC_KEY_CONTROL: return "CPC Control";
+      case CPC_KEY_HAT: return "CPC ^";
+      case CPC_KEY_MINUS: return "CPC Minus";
+      case CPC_KEY_AT: return "CPC At";
+      case CPC_KEY_P: return "CPC P";
+      case CPC_KEY_SEMICOLON: return "CPC Semicolon";
+      case CPC_KEY_COLON: return "CPC Colon";
+      case CPC_KEY_BACKSLASH: return "CPC Backslash";
+      case CPC_KEY_DOT: return "CPC .";
+      case CPC_KEY_ZERO: return "CPC 0";
+      case CPC_KEY_9: return "CPC 9";
+      case CPC_KEY_O: return "CPC O";
+      case CPC_KEY_I: return "CPC I";
+      case CPC_KEY_L: return "CPC L";
+      case CPC_KEY_K: return "CPC K";
+      case CPC_KEY_M: return "CPC M";
+      case CPC_KEY_COMMA: return "CPC Comma";
+      case CPC_KEY_8: return "CPC 8";
+      case CPC_KEY_7: return "CPC 7";
+      case CPC_KEY_U: return "CPC U";
+      case CPC_KEY_Y: return "CPC Y";
+      case CPC_KEY_H: return "CPC H";
+      case CPC_KEY_J: return "CPC J";
+      case CPC_KEY_N: return "CPC N";
+      case CPC_KEY_SPACE: return "CPC Space";
+      case CPC_KEY_6: return "CPC 6 / Joystick 2 Up";
+      case CPC_KEY_5: return "CPC 5 / Joystick 2 Down";
+      case CPC_KEY_R: return "CPC R / Joystick 2 Left";
+      case CPC_KEY_T: return "CPC T / Joystick 2 Right";
+      case CPC_KEY_G: return "CPC G / Joystick 2 Fire 1";
+      case CPC_KEY_F: return "CPC F / Joystick 2 Fire 2";
+      case CPC_KEY_B: return "CPC B / Joystick 2 Fire 3";
+      case CPC_KEY_V: return "CPC V";
+      case CPC_KEY_4: return "CPC 4";
+      case CPC_KEY_3: return "CPC 3";
+      case CPC_KEY_E: return "CPC E";
+      case CPC_KEY_W: return "CPC W";
+      case CPC_KEY_S: return "CPC S";
+      case CPC_KEY_D: return "CPC D";
+      case CPC_KEY_C: return "CPC C";
+      case CPC_KEY_X: return "CPC X";
+      case CPC_KEY_1: return "CPC 1";
+      case CPC_KEY_2: return "CPC 2";
+      case CPC_KEY_ESC: return "CPC Esc";
+      case CPC_KEY_Q: return "CPC Q";
+      case CPC_KEY_TAB: return "CPC Tab";
+      case CPC_KEY_A: return "CPC A";
+      case CPC_KEY_CAPS_LOCK: return "CPC Caps Lock";
+      case CPC_KEY_Z: return "CPC Z";
+      case CPC_KEY_JOY_UP: return "Joystick 1 Up";
+      case CPC_KEY_JOY_DOWN: return "Joystick 1 Down";
+      case CPC_KEY_JOY_LEFT: return "Joystick 1 Left";
+      case CPC_KEY_JOY_RIGHT: return "Joystick 1 Right";
+      case CPC_KEY_JOY_FIRE1: return "Joystick 1 Fire 1";
+      case CPC_KEY_JOY_FIRE2: return "Joystick 1 Fire 2";
+      case CPC_KEY_JOY_FIRE3: return "Joystick 1 Fire 3";
+      case CPC_KEY_DEL: return "CPC Del";
+      default: return NULL;
+   }
+}
+
+void ev_update_input_descriptors(void)
+{
+   static struct retro_input_descriptor descriptors[35];
+   static char labels[2][16][160];
+   static const char *combo_labels[MAX_JOY_EVENT] = {
+      "Catalogue", "Boot CP/M", "Run disk", "Run tape", "Toggle on-screen keyboard",
+      "Type 1/Y", "Type 2/N", "Type 4/S", "Type 3/J", "Previous disk", "Next disk"
+   };
+   unsigned port, id, n, count = 0;
+   memset(descriptors, 0, sizeof(descriptors));
+   for (port = 0; port < 2; port++) {
+      for (id = 0; id < 16; id++) {
+         const char *label = id < MAX_BUTTONS ? input_key_label(btnPAD[port].buttons[id]) : NULL;
+         char *text = labels[port][id];
+         snprintf(text, sizeof(labels[port][id]), "%s", label ? label : "");
+         if (port == 0 && ev_events == _events_joy) {
+            if (id == retro_computer_cfg.combokey)
+               snprintf(text, sizeof(labels[port][id]), "Core shortcut modifier");
+            else for (n = 0; n < MAX_JOY_EVENT; n++) {
+               if (events_combo[n].id == id) {
+                  size_t used = strlen(text);
+                  snprintf(text + used, sizeof(labels[port][id]) - used, "%sCombo: %s",
+                     used ? " / " : "", combo_labels[n]);
+                  break;
+               }
+            }
+         }
+         if (port == 0 && id == RETRO_DEVICE_ID_JOYPAD_L3)
+            snprintf(text, sizeof(labels[port][id]), "Toggle on-screen keyboard");
+         if (!text[0])
+            continue;
+         descriptors[count++] = (struct retro_input_descriptor){port, RETRO_DEVICE_JOYPAD, 0, id, text};
+      }
+      descriptors[count++] = (struct retro_input_descriptor){port, RETRO_DEVICE_LIGHTGUN, 0,
+         RETRO_DEVICE_ID_LIGHTGUN_TRIGGER, "Gun Trigger"};
+   }
+   environ_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, descriptors);
+}
+
 /**
  * ev_init:
  * prepare events interface, keyboard tables and sets retro environment input data
  * TODO: patch keyboard with user selected LANGUAGE/LAYOUT
  **/
 void ev_init(){
-
-   struct retro_input_descriptor inputDescriptors[] = {
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A, "A" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B, "B" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X, "X" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y, "Y" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Select" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START, "Start" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT, "Right" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT, "Left" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP, "Up" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN, "Down" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R, "R" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L, "L" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2, "R2" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2, "L2" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3, "R3" },
-      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3, "Toggle on-screen keyboard" },
-      { 0, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_TRIGGER, "Gun Trigger" },
-
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A, "A" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B, "B" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X, "X" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y, "Y" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Select" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START, "Start" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT, "Right" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT, "Left" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP, "Up" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN, "Down" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R, "R" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L, "L" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2, "R2" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2, "L2" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3, "R3" },
-      { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3, "L3" },
-      { 1, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_TRIGGER, "Gun Trigger" },
-
-      { 0 }
-   };
-   environ_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, &inputDescriptors);
 
    init_keyboard_table();
    init_joystick_table();
@@ -939,6 +1025,14 @@ void ev_toggle_call()
 
 void ev_combo_set(unsigned btn)
 {
+   events_combo[JOY_EVENT_ID_Y].id = RETRO_DEVICE_ID_JOYPAD_Y;
+   events_combo[JOY_EVENT_ID_B].id = RETRO_DEVICE_ID_JOYPAD_B;
+   if (btn >= 16) {
+      ev_events = _events_null;
+      if (event_call == EV_KBD)
+         process_events = ev_events;
+      return;
+   }
    retro_computer_cfg.combokey = btn;
    if (retro_computer_cfg.combokey == RETRO_DEVICE_ID_JOYPAD_Y)
    {
@@ -950,6 +1044,8 @@ void ev_combo_set(unsigned btn)
    }
 
    ev_events = _events_joy;
+   if (event_call == EV_KBD)
+      process_events = ev_events;
 }
 
 static bool cursor_movement(int *axis, int value, int max_value, int sum)

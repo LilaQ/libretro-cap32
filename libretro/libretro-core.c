@@ -992,6 +992,17 @@ static void update_variables(void)
    retro_computer_cfg.padcfg[ID_PLAYER1] = controller_port_variable(ID_PLAYER1, &var);
    retro_computer_cfg.padcfg[ID_PLAYER2] = controller_port_variable(ID_PLAYER2, &var);
 
+   var.key = "cap32_db_mapkeys";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         retro_computer_cfg.use_internal_remap = false;
+      else
+         retro_computer_cfg.use_internal_remap = true;
+   }
+
    // check keys
    if (game_configuration.has_btn && retro_computer_cfg.use_internal_remap)
    {
@@ -1031,17 +1042,8 @@ static void update_variables(void)
          ev_combo_set(RETRO_DEVICE_ID_JOYPAD_Y);
       else if (strcmp(var.value, "select") == 0)
          ev_combo_set(RETRO_DEVICE_ID_JOYPAD_SELECT);
-   }
-
-   var.key = "cap32_db_mapkeys";
-   var.value = NULL;
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         retro_computer_cfg.use_internal_remap = false;
-      else
-         retro_computer_cfg.use_internal_remap = true;
+      else if (strcmp(var.value, "disabled") == 0)
+         ev_combo_set(16);
    }
 
    var.key = "cap32_lightgun_input";
@@ -1286,6 +1288,7 @@ static void update_variables(void)
       retro_ui_update_text();
       computer_reset();
    }
+   ev_update_input_descriptors();
 }
 
 void Emu_init()
@@ -1438,6 +1441,8 @@ void computer_autoload()
       memcpy(btnPAD[ID_PLAYER1].buttons, game_configuration.btn_config_player_1.buttons, sizeof(t_button_cfg));
       memcpy(btnPAD[ID_PLAYER2].buttons, game_configuration.btn_config_player_2.buttons, sizeof(t_button_cfg));
    }
+
+   ev_update_input_descriptors();
 
    if (!retro_computer_cfg.autorun)
       return;
