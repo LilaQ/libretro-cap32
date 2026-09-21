@@ -1149,6 +1149,9 @@ void emulator_reset (bool bolMF2Reset)
    _IX = _IY = 0xffff; // IX and IY are FFFF after a reset!
    _F = Zflag; // set zero flag
 
+   if (CPC.model > CPC_MODEL_6128 && cpr_needs_no_exit_stack_fix())
+      _SP = 0xc000; // No Exit calls a subroutine before initializing its stack.
+
    z80.break_point = 0xffffffff; // clear break point
 
    // CPC
