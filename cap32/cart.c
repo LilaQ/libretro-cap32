@@ -29,6 +29,7 @@
 
 #include "cart.h"
 #include "errors.h"
+#include <encodings/crc32.h>
 
 #include <streams/file_stream.h>
 #include <streams/file_stream_transforms.h>
@@ -64,6 +65,17 @@ extern uint8_t* pbROMlo;
 
 uint8_t* pbCartridgeImage = NULL;
 uint8_t* pbCartridgePages[CPR_PAGES] = { NULL };
+
+/* The original No Exit cartridge calls 0081 at 013a before setting SP
+ * at 0151. With SP=0000, RET reads the upper ROM instead of the return
+ * address written beneath it. Identify the complete 128 KiB ROM payload,
+ * independently of the CPR filename, headers and trailing padding.
+ */
+bool cpr_needs_no_exit_stack_fix(void)
+{
+   return pbCartridgeImage != NULL &&
+      encoding_crc32(0, pbCartridgeImage, 128 * 1024) == 0x28f64ce1;
+}
 
 // FIXME: compatible MSB?
 uint32_t extractChunkSize(const uint8_t *pChunk)

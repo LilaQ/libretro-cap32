@@ -24,6 +24,7 @@
 extern uint8_t *pbCartridgeImage;
 extern uint8_t *pbCartridgePages[];
 
+bool cpr_needs_no_exit_stack_fix(void);
 void cpr_eject (void);
 int cpr_fload (const char* pchFileName);
 int cpr_load (const uint8_t* pbCtBuffer);
