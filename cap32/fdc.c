@@ -90,7 +90,9 @@ uint32_t dwBytesTransferred = 0;
 #define RES_N     6
 
 #define OVERRUN_TIMEOUT 128*4
-#define INITIAL_TIMEOUT OVERRUN_TIMEOUT*4
+/* Allow 1 ms for command-to-data startup. Megablasters delays its first
+ * status poll; keep the existing inter-byte overrun deadline unchanged. */
+#define INITIAL_TIMEOUT OVERRUN_TIMEOUT*8
 
 void fdc_specify(void);
 void fdc_drvstat(void);
