@@ -851,7 +851,7 @@ static void tape_fast_update(void)
    bool fast = false;
    unsigned reads = tape_input_reads;
    tape_input_reads = 0;
-   if (!CPC.tape_motor || !CPC.tape_play_button || tape_fast_ratio < 0.0f) {
+   if (!retro_computer_cfg.tape_fastload || !CPC.tape_motor || !CPC.tape_play_button) {
       tape_fast_reset();
       return;
    }
@@ -935,6 +935,8 @@ static void update_variables(void)
          tape_fast_reset();
          tape_fast_ratio = ratio;
       }
+      retro_computer_cfg.tape_fastload = ratio >= 0.0f &&
+         environ_cb(RETRO_ENVIRONMENT_SET_FASTFORWARDING_OVERRIDE, NULL);
    }
 
    // user 1/2 - input config
