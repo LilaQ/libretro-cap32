@@ -15,7 +15,7 @@ core.loader_run.argtypes = [ctypes.c_void_p]
 
 def disk(names=('DATA.BIN', 'START.BIN'), starts=(0, 0x4000),
          bad_header=None, load=0x4000, length=128, bad_block=False,
-         headerless=False, system=False, interleave=True, hidden=False):
+         headerless=False, system=False, interleave=True, hidden=False, plus3=None, bad_plus3=False, bad_signature=False, empty_tracks=False):
     logical = bytearray(40 * 9 * 512)
     logical[:2048] = b'\xe5' * 2048
     for i, (name, start) in enumerate(zip(names, starts)):
@@ -40,6 +40,16 @@ def disk(names=('DATA.BIN', 'START.BIN'), starts=(0, 0x4000),
             h[67] ^= 1
         if headerless and i == 0:
             h = bytearray(128)
+        if plus3 == i:
+            h = bytearray(128)
+            h[:9] = b'PLUS3DOS\x1a'
+            h[9] = 1
+            h[11:15] = (256).to_bytes(4, 'little')
+            if bad_signature:
+                h[8] = 0
+            h[127] = sum(h[:127]) & 255
+            if bad_plus3:
+                h[127] ^= 1
         logical[(i + 2) * 1024:(i + 2) * 1024 + 128] = h
     result = bytearray(256)
     result[:8] = b'MV - CPC'
@@ -57,10 +67,27 @@ def disk(names=('DATA.BIN', 'START.BIN'), starts=(0, 0x4000),
         for sector in order:
             source = (t - (2 if system else 0)) * 9 + sector
             result += logical[source * 512:(source + 1) * 512] if source >= 0 else bytes(512)
+    if empty_tracks:
+        result[:34] = b'EXTENDED CPC DSK File\r\nDisk-Info\r\n'
+        result[48] = 99
+        result[50:52] = bytes(2)
+        result[52:92] = bytes([19]) * 40
+        for track in range(40):
+            for sector in range(9):
+                offset = 256 + track * 4864 + 24 + sector * 8 + 6
+                result[offset:offset + 2] = (512).to_bytes(2, 'little')
     return result
 
 
 cases = [
+    ('plus3-empty-tracks', {'names': ('DISK.', 'MENU.BAS'), 'plus3': 0, 'empty_tracks': True}, 'MENU.BAS'),
+    ('plus3-disk', {'names': ('DISK.', 'MENU.BAS'), 'plus3': 0}, 'MENU.BAS'),
+    ('plus3-bad-checksum', {'names': ('DISK.', 'MENU.BAS'), 'plus3': 0, 'bad_plus3': True}, 'DISK.'),
+    ('plus3-bad-signature', {'names': ('DISK.', 'MENU.BAS'), 'plus3': 0, 'bad_signature': True}, 'DISK.'),
+    ('plus3-basic', {'names': ('FIRST.BAS', 'MENU.BAS'), 'plus3': 0}, 'MENU.BAS'),
+    ('plus3-bin', {'names': ('FIRST.BIN', 'MENU.BIN'), 'plus3': 0}, 'MENU.BIN'),
+    ('plus3-hidden', {'names': ('FIRST.BIN', 'DISK.'), 'plus3': 1, 'hidden': True}, 'FIRST.BIN'),
+    ('plus3-system-unchanged', {'names': ('DISK.', 'MENU.BAS'), 'plus3': 0, 'system': True}, 'DISK.'),
     ('prefer-entry-point', {}, 'START.BIN'),
     ('physical-sector-order', {'interleave': False}, 'START.BIN'),
     ('already-startable', {'starts': (0x4000, 0x4000)}, 'DATA.BIN'),

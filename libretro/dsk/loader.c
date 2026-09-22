@@ -47,6 +47,8 @@ extern t_drive driveA;
 
 //#define LOADER_DEBUG
 
+static bool loader_foreign[CAT_MAX_ENTRY];
+
 bool _loader_launch(char * key_buffer, char * filename)
 {
    if (game_configuration.is_cpm)
@@ -71,7 +73,7 @@ bool _loader_launch(char * key_buffer, char * filename)
 bool _loader_find_file (char * key_buffer, char * filename)
 {
    for (int idx = 0; idx < catalogue.last_entry; idx++) {
-      if (memcmp(catalogue.dirent[idx].filename, filename, strlen(filename)) != 0)
+      if (loader_foreign[idx] || memcmp(catalogue.dirent[idx].filename, filename, strlen(filename)) != 0)
          continue;
 
       return _loader_launch(key_buffer, catalogue.dirent[idx].filename);
@@ -106,22 +108,22 @@ static const unsigned char *loader_data_sector(t_drive *drive, unsigned logical)
    return data;
 }
 
-static const unsigned char *loader_bin_header(t_drive *drive, const char *filename)
+static const unsigned char *loader_file_header(t_drive *drive, const char *filename)
 {
    unsigned char name[11];
    const char *dot = strchr(filename, '.');
-   if (!dot || dot - filename > 8 || strcasecmp(dot + 1, "BIN"))
+   if (!dot || dot - filename > 8 || strlen(dot + 1) > 3)
       return NULL;
    memset(name, ' ', sizeof(name));
    memcpy(name, filename, dot - filename);
-   memcpy(name + 8, "BIN", 3);
+   memcpy(name + 8, dot + 1, strlen(dot + 1));
    for (unsigned s = 0; s < 4; s++) {
       const unsigned char *directory = loader_data_sector(drive, s);
       if (!directory)
          return NULL;
       for (unsigned offset = 0; offset < 512; offset += 32) {
          const unsigned char *entry = directory + offset;
-         unsigned i, checksum = 0;
+         unsigned i;
          /* User 0, first extent, nonempty file, ordinary allocation block. */
          if (entry[0] || entry[12] || entry[14] || !entry[15] || entry[16] < 2)
             continue;
@@ -130,17 +132,41 @@ static const unsigned char *loader_bin_header(t_drive *drive, const char *filena
                break;
          if (i != 11)
             continue;
-         const unsigned char *header = loader_data_sector(drive, entry[16] * 2);
-         if (!header || header[18] != 2)
-            return NULL;
-         for (i = 0; i < 67; i++)
-            checksum += header[i];
-         if (checksum != (unsigned)(header[67] | header[68] << 8))
-            return NULL;
-         return header;
+         return loader_data_sector(drive, entry[16] * 2);
       }
    }
    return NULL;
+}
+
+static const unsigned char *loader_bin_header(t_drive *drive, const char *filename)
+{
+   const char *dot = strchr(filename, '.');
+   const unsigned char *header;
+   unsigned checksum = 0;
+   if (!dot || strcasecmp(dot + 1, "BIN"))
+      return NULL;
+   header = loader_file_header(drive, filename);
+   if (!header || header[18] != 2)
+      return NULL;
+   for (unsigned i = 0; i < 67; i++)
+      checksum += header[i];
+   return checksum == (unsigned)(header[67] | header[68] << 8) ? header : NULL;
+}
+
+static void loader_probe_foreign(t_drive *drive)
+{
+   memset(loader_foreign, 0, sizeof(loader_foreign));
+   if (game_configuration.is_cpm || drive->sides)
+      return;
+   for (int i = 0; i < catalogue.last_entry; i++) {
+      const unsigned char *header = loader_file_header(drive, catalogue.dirent[i].filename);
+      unsigned checksum = 0;
+      if (!header || memcmp(header, "PLUS3DOS\x1a", 9))
+         continue;
+      for (unsigned j = 0; j < 127; j++)
+         checksum += header[j];
+      loader_foreign[i] = (checksum & 0xff) == header[127];
+   }
 }
 
 static int loader_prefer_startable_bin(t_drive *drive, retro_format_info_t *format, int first)
@@ -153,7 +179,7 @@ static int loader_prefer_startable_bin(t_drive *drive, retro_format_info_t *form
    if (!header || header[26] || header[27])
       return first;
    for (int i = first + 1; i < catalogue.last_entry; i++) {
-      if (catalogue.dirent[i].is_hidden)
+      if (loader_foreign[i] || catalogue.dirent[i].is_hidden)
          continue;
       header = loader_bin_header(drive, catalogue.dirent[i].filename);
       if (!header)
@@ -181,7 +207,7 @@ bool _loader_find (char * key_buffer, retro_format_info_t *format, t_drive *driv
 
    for (int idx = 0; idx < catalogue.last_entry; idx++) {
       char* scan = strchr(catalogue.dirent[idx].filename, '.');
-      if (!scan)
+      if (loader_foreign[idx] || !scan)
          continue;
 
       #ifdef LOADER_DEBUG
@@ -244,6 +270,8 @@ bool _loader_one_listed(char * key_buffer)
    if (game_configuration.is_cpm && (catalogue.entries_listed_found != 1 && catalogue.entries_hidden_found != 1))
       return false;
 
+   if (loader_foreign[catalogue.first_listed_dirent])
+      return false;
    return _loader_launch(key_buffer, catalogue.dirent[catalogue.first_listed_dirent].filename);
 }
 
@@ -268,6 +296,8 @@ bool _loader_hidden(char * key_buffer, retro_format_info_t *format)
    printf("[  LOADER  ] >>> using hidden\n");
    #endif
 
+   if (loader_foreign[catalogue.first_hidden_dirent])
+      return false;
    return _loader_launch(key_buffer, catalogue.dirent[catalogue.first_hidden_dirent].filename);
 }
 
@@ -310,6 +340,7 @@ void _loader_run(char * key_buffer, retro_format_info_t *format, t_drive *curren
    memset(key_buffer, 0, LOADER_MAX_SIZE);
 
    catalog_probe(current_drive, 0);
+   loader_probe_foreign(current_drive);
 
    if (_loader_cpm(key_buffer, format))
       return;
