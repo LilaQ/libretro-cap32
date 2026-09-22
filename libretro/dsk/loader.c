@@ -81,7 +81,94 @@ bool _loader_find_file (char * key_buffer, char * filename)
    return false;
 }
 
-bool _loader_find (char * key_buffer, retro_format_info_t *format)
+/* Probe only ordinary single-sided DATA disks. Unusual layouts keep the
+ * existing filename heuristic rather than guessing their allocation scheme. */
+static const unsigned char *loader_data_sector(t_drive *drive, unsigned logical)
+{
+   unsigned track_id = logical / 9;
+   unsigned sector_id = 0xc1 + logical % 9;
+   const unsigned char *data = NULL;
+   if (track_id >= drive->tracks || track_id >= DSK_TRACKMAX)
+      return NULL;
+   t_track *track = &drive->track[track_id][0];
+   if (track->sectors != 9)
+      return NULL;
+   for (unsigned i = 0; i < track->sectors; i++) {
+      t_sector *sector = &track->sector[i];
+      if (sector->CHRN.sector_info != sector_id)
+         continue;
+      if (data || sector->CHRN.cylinder != track_id || sector->CHRN.side ||
+          sector->CHRN.sector_size != 2 || sector->size != 512 ||
+          sector->flags[0] || sector->flags[1] || sector->weak_versions > 1)
+         return NULL;
+      data = sector->data;
+   }
+   return data;
+}
+
+static const unsigned char *loader_bin_header(t_drive *drive, const char *filename)
+{
+   unsigned char name[11];
+   const char *dot = strchr(filename, '.');
+   if (!dot || dot - filename > 8 || strcasecmp(dot + 1, "BIN"))
+      return NULL;
+   memset(name, ' ', sizeof(name));
+   memcpy(name, filename, dot - filename);
+   memcpy(name + 8, "BIN", 3);
+   for (unsigned s = 0; s < 4; s++) {
+      const unsigned char *directory = loader_data_sector(drive, s);
+      if (!directory)
+         return NULL;
+      for (unsigned offset = 0; offset < 512; offset += 32) {
+         const unsigned char *entry = directory + offset;
+         unsigned i, checksum = 0;
+         /* User 0, first extent, nonempty file, ordinary allocation block. */
+         if (entry[0] || entry[12] || entry[14] || !entry[15] || entry[16] < 2)
+            continue;
+         for (i = 0; i < 11; i++)
+            if ((entry[i + 1] & 0x7f) != name[i])
+               break;
+         if (i != 11)
+            continue;
+         const unsigned char *header = loader_data_sector(drive, entry[16] * 2);
+         if (!header || header[18] != 2)
+            return NULL;
+         for (i = 0; i < 67; i++)
+            checksum += header[i];
+         if (checksum != (unsigned)(header[67] | header[68] << 8))
+            return NULL;
+         return header;
+      }
+   }
+   return NULL;
+}
+
+static int loader_prefer_startable_bin(t_drive *drive, retro_format_info_t *format, int first)
+{
+   if (game_configuration.is_cpm || format->type != FORMAT_TYPE_AMSDOS_DATA ||
+       drive->sides || catalogue.track_listed_id != 0 ||
+       catalogue.dirent[first].is_hidden)
+      return first;
+   const unsigned char *header = loader_bin_header(drive, catalogue.dirent[first].filename);
+   if (!header || header[26] || header[27])
+      return first;
+   for (int i = first + 1; i < catalogue.last_entry; i++) {
+      if (catalogue.dirent[i].is_hidden)
+         continue;
+      header = loader_bin_header(drive, catalogue.dirent[i].filename);
+      if (!header)
+         continue;
+      unsigned load = header[21] | header[22] << 8;
+      unsigned length = header[24] | header[25] << 8;
+      unsigned start = header[26] | header[27] << 8;
+      if (start && length && load + length <= 0x10000 &&
+          start >= load && start < load + length)
+         return i;
+   }
+   return first;
+}
+
+bool _loader_find (char * key_buffer, retro_format_info_t *format, t_drive *drive)
 {
    if (catalogue.track_listed_id != format->catalogue_sector && catalogue.track_hidden_id != format->catalogue_sector)
       return false;
@@ -135,7 +222,7 @@ bool _loader_find (char * key_buffer, retro_format_info_t *format)
       printf("[LOADER] FIND: first EMPTY EXT found at [%i] filename: %s \n", first_spc, catalogue.dirent[first_spc].filename);
       #endif
    }else if (first_bin != -1) {
-      cur_name_id = first_bin;
+      cur_name_id = loader_prefer_startable_bin(drive, format, first_bin);
 
       #ifdef LOADER_DEBUG
       printf("[LOADER] FIND: first BIN EXT found at [%i] filename: %s \n", first_bin, catalogue.dirent[first_bin].filename);
@@ -253,7 +340,7 @@ void _loader_run(char * key_buffer, retro_format_info_t *format, t_drive *curren
    printf("[  LOADER  ] finally trying with bas/bin/dot files\n");
    #endif
 
-   if(!_loader_find(key_buffer, format))
+   if(!_loader_find(key_buffer, format, current_drive))
    {
       _loader_failed(key_buffer, format->type == FORMAT_TYPE_AMSDOS_SYSTEM);
    }
