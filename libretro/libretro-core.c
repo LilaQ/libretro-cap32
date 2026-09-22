@@ -74,6 +74,7 @@ extern dc_storage* dc;
 
 // LIGHTGUN
 #include "retro_gun.h"
+#include "lightgun/lightgun.h"
 extern t_lightgun_cfg lightgun_cfg;
 
 // LOG
@@ -475,6 +476,20 @@ static struct retro_core_option_v2_definition option_definitions[] = {
       "disabled"
    },
    {
+      "cap32_lightgun1_keyboard", "Gun 1: Keyboard Toggle", NULL,
+      "Mouse button used to open or close the on-screen keyboard on this lightgun port. Choose a button not assigned to shooting or another action.",
+      NULL, "light_gun",
+      { { "off", "Off" }, { "middle", "Middle" }, { "right", "Right" }, { "left", "Left" }, { NULL, NULL } },
+      "middle"
+   },
+   {
+      "cap32_lightgun2_keyboard", "Gun 2: Keyboard Toggle", NULL,
+      "Mouse button used to open or close the on-screen keyboard on this lightgun port. Choose a button not assigned to shooting or another action.",
+      NULL, "light_gun",
+      { { "off", "Off" }, { "middle", "Middle" }, { "right", "Right" }, { "left", "Left" }, { NULL, NULL } },
+      "middle"
+   },
+   {
       "cap32_lightgun_show",
       "Show Crosshair",
       NULL,
@@ -713,6 +728,8 @@ static struct retro_variable variables[] = {
       "cap32_lightgun_input",
       "Light Gun > Input; disabled|phaser|gunstick",
    },
+   { "cap32_lightgun1_keyboard", "Lightgun > Gun 1: Keyboard Toggle; middle|off|right|left" },
+   { "cap32_lightgun2_keyboard", "Lightgun > Gun 2: Keyboard Toggle; middle|off|right|left" },
    {
       "cap32_lightgun_show",
       "Light Gun > Show Crosshair; disabled|enabled",
@@ -921,6 +938,14 @@ static void update_variables(void)
          lightgun_cfg.guntype = val;
       }
    }
+
+   var.key = "cap32_lightgun1_keyboard";
+   var.value = NULL;
+   ev_vkeyboard_set_mouse(0, environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) ? var.value : NULL);
+
+   var.key = "cap32_lightgun2_keyboard";
+   var.value = NULL;
+   ev_vkeyboard_set_mouse(1, environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) ? var.value : NULL);
 
    var.key = "cap32_lightgun_show";
    var.value = NULL;
@@ -1150,6 +1175,7 @@ static void update_variables(void)
       retro_ui_update_text();
       computer_reset();
    }
+   lightgun_prepare(lightgun_cfg.guntype);
 }
 
 void Emu_init()
@@ -1645,22 +1671,10 @@ void retro_set_controller_port_device( unsigned port, unsigned device )
    if ( port > 1 )
       return;
 
-   switch (device)
-   {
-      case RETRO_DEVICE_AMSTRAD_LIGHTGUN:
-         lightgun_prepare(lightgun_cfg.guntype);
-         amstrad_devices[port] = RETRO_DEVICE_AMSTRAD_LIGHTGUN;
-         break;
-
-      default:
-         // please do not deinit the lightgun config
-         if (lightgun_cfg.gunconfigured == LIGHTGUN_TYPE_UNCONFIGURED)
-         {
-            lightgun_prepare(LIGHTGUN_TYPE_NONE);
-         }
-         amstrad_devices[port] = device;
-         break;
-   }
+   amstrad_devices[port] = device;
+   gun[port].pressed = 0;
+   gun[port].state = GUN_SLEEP;
+   lightgun_prepare(lightgun_cfg.guntype);
 
    LOGI("retro_set_controller_port_device: (%d)=%d\n", port, device);
 }
@@ -1733,6 +1747,7 @@ void retro_audio_mix_batch()
 void retro_PollEvent()
 {
    input_poll_cb(); // retroarch get keys
+   ev_vkeyboard_poll();
    if (lightgun_cfg.gun_update)
       lightgun_cfg.gun_update(); // update lightguns
    process_events();
@@ -1766,6 +1781,8 @@ void retro_run(void)
       lightgun_cfg.gun_draw();
 
    screen_draw();
+   if (lightgun_cfg.gun_draw)
+      lightgun_restore();
 }
 
 bool retro_load_game(const struct retro_game_info *game)
