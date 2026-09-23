@@ -90,9 +90,7 @@ uint32_t dwBytesTransferred = 0;
 #define RES_N     6
 
 #define OVERRUN_TIMEOUT 128*4
-/* Allow 1 ms for command-to-data startup. Megablasters delays its first
- * status poll; keep the existing inter-byte overrun deadline unchanged. */
-#define INITIAL_TIMEOUT OVERRUN_TIMEOUT*8
+#define INITIAL_TIMEOUT OVERRUN_TIMEOUT*4
 
 void fdc_specify(void);
 void fdc_drvstat(void);
@@ -359,7 +357,8 @@ loop:
          FDC.buffer_count = sector_size; // init number of bytes to transfer
          FDC.buffer_ptr = sector_get_read_data(sector); // pointer to sector data (weak sector support)
          FDC.buffer_endptr = active_track->data + active_track->size; // pointer beyond end of track data
-         FDC.timeout = INITIAL_TIMEOUT;
+         // Keep the existing sector startup approximation separate from the byte deadline.
+         FDC.timeout = INITIAL_TIMEOUT + OVERRUN_TIMEOUT;
          read_status_delay = 1;
       }
    }
@@ -397,7 +396,8 @@ static INLINE void cmd_readtrk(void)
    FDC.buffer_count = sector_size; // init number of bytes to transfer
    FDC.buffer_ptr = sector_get_read_data(sector); // pointer to sector data (weak sector support)
    FDC.buffer_endptr = active_track->data + active_track->size; // pointer beyond end of track data
-   FDC.timeout = INITIAL_TIMEOUT;
+   // Keep the existing sector startup approximation separate from the byte deadline.
+   FDC.timeout = INITIAL_TIMEOUT + OVERRUN_TIMEOUT;
    read_status_delay = 1;
 }
 
@@ -628,9 +628,10 @@ uint8_t fdc_read_status(void)
 
    val = 0x80; // data register ready
    if (FDC.phase == EXEC_PHASE) { // in execution phase?
-      if (read_status_delay) {
+      if (FDC.cmd_direction == FDC_TO_CPU ? FDC.timeout > OVERRUN_TIMEOUT : read_status_delay) {
          val = 0x10; // FDC is busy
-         read_status_delay--;
+         if (FDC.cmd_direction != FDC_TO_CPU)
+            read_status_delay--;
       }
       else {
          val |= 0x30; // FDC is executing & busy
@@ -658,7 +659,7 @@ uint8_t fdc_read_data(void)
    switch (FDC.phase)
    {
       case EXEC_PHASE: // in execution phase?
-         if (FDC.cmd_direction == FDC_TO_CPU) { // proper direction?
+         if (FDC.cmd_direction == FDC_TO_CPU && FDC.timeout <= OVERRUN_TIMEOUT) { // data ready?
             FDC.timeout = OVERRUN_TIMEOUT;
             val = *FDC.buffer_ptr++; // read byte from current sector
             #ifdef DEBUG_FDC
