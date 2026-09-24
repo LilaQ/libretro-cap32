@@ -49,6 +49,7 @@
 #include "retro_ui.h"
 #include "lightgun/lightgun.h"
 #include "retro_gun.h"
+#include "retro_gun_calibration.h"
 #include "retro_disk_control.h"
 
 /**
@@ -999,7 +1000,8 @@ void ev_lightgun(unsigned port)
    x = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X);
    y = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y);
    if (x == -0x8000 || y == -0x8000 ||
-       input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_IS_OFFSCREEN)) {
+       input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_IS_OFFSCREEN) ||
+       !gun_calibration_apply(port, &x, &y)) {
       g->state = GUN_PREPARE;
       g->x = g->y = -1;
       return;

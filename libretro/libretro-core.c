@@ -74,6 +74,8 @@ extern dc_storage* dc;
 
 // LIGHTGUN
 #include "retro_gun.h"
+#include "retro_gun_calibration.h"
+void gun_calibration_refresh_options(void);
 #include "lightgun/lightgun.h"
 extern t_lightgun_cfg lightgun_cfg;
 
@@ -490,6 +492,33 @@ static struct retro_core_option_v2_definition option_definitions[] = {
       "middle"
    },
    {
+      "cap32_lightgun_calibration", "Calibration", NULL,
+      "Close the menu and shoot three targets, then the check target to save. Right mouse repeats; middle cancels. One correction for both guns, stored per game in the save directory. Use Gun 1, or Gun 2 when Gun 1 is disconnected. Corrects linear scaling and offsets, not CRT curvature. Recalibrate after changing shaders. To repeat on older frontends, select Off first.",
+      NULL, "light_gun",
+      { { "off", "Off" }, { "start", "Calibrate (Both Guns)" }, { "reset", "Reset (Both Guns)" }, { NULL, NULL } },
+      "off"
+   },
+   {
+      "cap32_lightgun_scale_x", "X Scale", NULL,
+      "Horizontal scaling around the centre, shared by both guns. 1.0 is unchanged.", NULL, "light_gun",
+      { { "1", NULL }, { NULL, NULL } }, "1"
+   },
+   {
+      "cap32_lightgun_scale_y", "Y Scale", NULL,
+      "Vertical scaling around the centre, shared by both guns. 1.0 is unchanged.", NULL, "light_gun",
+      { { "1", NULL }, { NULL, NULL } }, "1"
+   },
+   {
+      "cap32_lightgun_offset_x", "X Offset", NULL,
+      "Horizontal correction as a percentage of image width. Positive moves the aim right.", NULL, "light_gun",
+      { { "0", NULL }, { NULL, NULL } }, "0"
+   },
+   {
+      "cap32_lightgun_offset_y", "Y Offset", NULL,
+      "Vertical correction as a percentage of image height. Positive moves the aim down.", NULL, "light_gun",
+      { { "0", NULL }, { NULL, NULL } }, "0"
+   },
+   {
       "cap32_lightgun_show",
       "Show Crosshair",
       NULL,
@@ -728,6 +757,11 @@ static struct retro_variable variables[] = {
       "cap32_lightgun_input",
       "Light Gun > Input; disabled|phaser|gunstick",
    },
+   { "cap32_lightgun_scale_x", "Light Gun > X Scale; 1" },
+   { "cap32_lightgun_scale_y", "Light Gun > Y Scale; 1" },
+   { "cap32_lightgun_offset_x", "Light Gun > X Offset; 0" },
+   { "cap32_lightgun_offset_y", "Light Gun > Y Offset; 0" },
+   { "cap32_lightgun_calibration", "Lightgun > Calibration; off|start|reset" },
    { "cap32_lightgun1_keyboard", "Lightgun > Gun 1: Keyboard Toggle; middle|off|right|left" },
    { "cap32_lightgun2_keyboard", "Lightgun > Gun 2: Keyboard Toggle; middle|off|right|left" },
    {
@@ -814,14 +848,20 @@ void retro_set_environment(retro_environment_t cb)
 
    environ_cb( RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports );
 
+   gun_calibration_refresh_options();
+}
+
+void gun_calibration_refresh_options(void)
+{
+   gun_calibration_options(option_definitions, variables);
    unsigned options_version = 0;
-   if (cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &options_version) && (options_version >= 2))
+   if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &options_version) && (options_version >= 2))
    {
       struct retro_core_options_v2 options = {
          option_categories,
          option_definitions
       };
-      cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2, &options);
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2, &options);
    }
    else
    {
@@ -1176,6 +1216,11 @@ static void update_variables(void)
       computer_reset();
    }
    lightgun_prepare(lightgun_cfg.guntype);
+   gun_calibration_read_options();
+   var.key = "cap32_lightgun_calibration";
+   var.value = NULL;
+   environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var);
+   gun_calibration_option(var.value);
 }
 
 void Emu_init()
@@ -1633,6 +1678,7 @@ void retro_init(void)
 
 void retro_deinit(void)
 {
+   gun_calibration_unload();
    // disk diff before clean up
    detach_disk(0);
 
@@ -1772,6 +1818,22 @@ void retro_run(void)
       retro_message("Options updated, changes applied!");
    }
 
+   if (gun_calibration_active())
+   {
+      static const int16_t silence[2048] = {0};
+      size_t frames = audio_buffer_size / AUDIO_BYTES / AUDIO_CHANNELS;
+      input_poll_cb();
+      gun_calibration_frame();
+      screen_draw();
+      gun_calibration_restore();
+      while (frames) {
+         size_t count = frames > 1024 ? 1024 : frames;
+         audio_batch_cb(silence, count);
+         frames -= count;
+      }
+      return;
+   }
+
    retro_loop();
 
    retro_PollEvent();
@@ -1823,11 +1885,15 @@ bool retro_load_game(const struct retro_game_info *game)
    computer_load_bios();
    computer_load_file();
    retro_ui_draw_db();
+   gun_calibration_load(retro_content_filepath);
 
    return true;
 }
 
-void retro_unload_game(void){}
+void retro_unload_game(void)
+{
+   gun_calibration_unload();
+}
 
 unsigned retro_get_region(void)
 {
