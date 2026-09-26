@@ -88,9 +88,32 @@ uint32_t _gunstick_get_screen(int x, int y)
    return video_buffer[y * EMULATION_SCREEN_WIDTH + x];
 }
 
+/* The sensor responds to brightness, not an exact palette colour.
+ * Decode the renderer's packed pixel before comparing with the existing
+ * grey sensitivity level, so coloured flashes work in every pixel format. */
+static unsigned gunstick_luminance(uint32_t pixel)
+{
+   unsigned r, g, b;
+   if (retro_video.depth == DEPTH_16BPP) {
+      r = ((pixel >> 11) & 31) * 255 / 31;
+      g = ((pixel >> 5) & 63) * 255 / 63;
+      b = (pixel & 31) * 255 / 31;
+   } else if (retro_video.depth == DEPTH_8BPP) {
+      r = ((pixel >> 5) & 7) * 255 / 7;
+      g = ((pixel >> 2) & 7) * 255 / 7;
+      b = (pixel & 3) * 255 / 3;
+   } else {
+      r = (pixel >> 16) & 255;
+      g = (pixel >> 8) & 255;
+      b = pixel & 255;
+   }
+   return 299*r + 587*g + 114*b;
+}
+
 bool _gunstick_check(unsigned port)
 {
    uint32_t gcolor;
+   unsigned threshold;
 
    if (gun[port].state == GUN_XYGET)
    {
@@ -104,9 +127,10 @@ bool _gunstick_check(unsigned port)
    printf("gunstick: 0x%X (%u,%u) [0x%X]\n", gcolor, light[port].x, light[port].y, lightgun_cfg.whitecolor);
    #endif
 
-   /* Solo also uses grey targets. A preceding black sample must not
-    * suppress the subsequent target flash (Mike Gunner). */
-   if ((gcolor == lightgun_cfg.whitecolor || gcolor == lightgun_cfg.greycolor))
+   /* Guillermo Tell uses a light-yellow flash. Keep grey targets (Solo)
+    * and allow a black sample followed by a flash (Mike Gunner). */
+   threshold = gunstick_luminance(lightgun_cfg.greycolor);
+   if (threshold && gunstick_luminance(gcolor) >= threshold)
    {
       gun[port].state = GUN_SLEEP;
       return true;
