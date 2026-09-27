@@ -990,7 +990,9 @@ void ev_lightgun(unsigned port)
    t_lightgun *g = &gun[port];
    int x, y;
    g->pressed = false;
-   if (!lightgun_active(port)) {
+   /* The same pointer click can also arrive as a gun trigger. Consume it
+    * in the on-screen keyboard/menu instead of shooting into the game. */
+   if (!lightgun_active(port) || retro_ui_captures_pointer()) {
       g->state = GUN_SLEEP;
       g->x = g->y = -1;
       return;

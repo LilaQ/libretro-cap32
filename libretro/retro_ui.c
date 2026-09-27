@@ -333,6 +333,11 @@ void retro_ui_set_status(retro_commands_ui_t status, bool value)
       BIT_CLEAR(ui_status, status);
 }
 
+bool retro_ui_captures_pointer(void)
+{
+   return (ui_status & (INTERNAL_UI_KEYBOARD | INTERNAL_UI_MENU)) != 0;
+}
+
 ;
 void retro_ui_toggle_status(retro_commands_ui_t status)
 {
